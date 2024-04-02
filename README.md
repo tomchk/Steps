@@ -1,4 +1,4 @@
-# Steps Recorder Blender Addon
+![image](https://github.com/WankioM/Steps/assets/111064857/e2bbf399-9ec0-4a0c-851f-b24905877b8c)# Steps Recorder Blender Addon
 ## Overview
 The Steps Recorder Blender Addon is a powerful tool designed to simplify the process of recording and applying steps performed on a 3D mesh within the Blender software.
 
@@ -11,6 +11,10 @@ Download the addon files.
 In Blender, navigate to Edit > Preferences > Add-ons.
 Click on Install and select the downloaded addon file.
 Enable the addon by checking the checkbox next to "Steps Recorder".
+![addon-panel](https://github.com/WankioM/Steps/assets/111064857/521ea030-6ad7-48d4-ad42-ecb80aa45afb)
+
+
+
 Usage
 Start Recording:
 
