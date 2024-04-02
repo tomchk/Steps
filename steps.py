@@ -1,8 +1,10 @@
-"""
-TO DO:
-    1. Make sure when someone exports , they are told  it can only be exported as admin
-    2. Make sure "Export actually works
-    """
+bl_info = {
+    "name": "Steps Tracker",
+    "blender": (4, 0, 0),
+    "category": "Object",
+    "author": "Tracy Wankio",
+    "version": (1, 0),
+}
 
 
 import bpy
@@ -10,8 +12,8 @@ import copy
 import math
 from itertools import zip_longest
 
-# Global variable to hold recorded steps
-# Store previous state information
+
+
 previous_mesh_info = {}
 previous_location = None
 starting_location = None
@@ -34,7 +36,7 @@ def get_starting_loc():
     obj = bpy.context.active_object
     if obj and obj.type == 'MESH':       
         starting_location = ( copy.deepcopy(obj.location), True) 
-        print (starting_location)
+       
         
 
 def get_pos_transform (start, end):
@@ -44,7 +46,7 @@ def get_pos_transform (start, end):
     
     
     translation = tuple(e - s for e, s in zip(end, start))
-    print(f"The translation vector is: {translation}")
+
     
     command = (
         f"bpy.ops.transform.translate("
@@ -68,7 +70,7 @@ def get_pos_transform (start, end):
         f"use_snap_selectable=False, "
         f"alt_navigation=True)"
     )
-    print(f"\n Command: {command}")
+
     steps.append(command)
     return command
 
@@ -88,24 +90,23 @@ def get_starting_rotation():
         rotation= (rotation_x , rotation_y , rotation_z )     
         
         starting_rotation = copy.deepcopy(rotation)
-        print (f"\n Rotation {starting_rotation}")
+    
         
 
 def rotation_command (start, end):
     
     global steps
     global starting_rotation
-    
-    print(f"start {start} end {end} in deg {tuple(math.degrees(angle) for angle in end)}")
+ 
     
     if end is not None and start is not None and len(end) == len(start):
         rotation = tuple(e - s for e, s in zip(end, start))
     
     else:
-        # Handle the case when 'end' or 'start' is None or they have different lengths
-        print("Error: 'end' or 'start' is None, or they have different lengths.")
+
+
         rotation = None  
-    print(f"The rotation vector is: {rotation}")
+ 
     
  
     if rotation[0] != 0:  # X-axis rotation
@@ -136,19 +137,15 @@ def get_starting_scale():
     obj = bpy.context.active_object
     if obj and obj.type == 'MESH':       
         starting_scale = copy.deepcopy(obj.scale)
-        print (starting_scale)
+  
         
 
 def get_scale_factor(start, end):
     
     global steps
-    
-    
-    
- 
-    print(f"starting scale {start} end {end}")
+
     factor = tuple(e / s for e, s in zip(end, start))
-    print(f"The scale factor is: {factor}")
+
     
     command = (
     f"bpy.ops.transform.resize("
@@ -156,7 +153,7 @@ def get_scale_factor(start, end):
     f"orient_type='GLOBAL')"
 )
 
-    print(f"\n Command: {command}")
+
     steps.append(command)
     return command
     
@@ -182,12 +179,12 @@ def log_mesh_changes(dummy):
     
     if obj and obj.type == 'MESH':
         
-        # Get the last operator executed
+       
         last_operator = bpy.context.window_manager.operators[-1].bl_idname
         
-        # only log the last operator if it has changed to prevent millions of lines
+       
         if last_operator != logged_op:
-            print(f'Lasty Operator {last_operator} lop {logged_op}')
+         
             
             logged_op=last_operator
             
@@ -214,45 +211,32 @@ def log_mesh_changes(dummy):
                     print(f' Debug  key: {previous_mesh_info.get(key)} value: {value}')
                     print(f"Mesh {key} count changed: {value}")
                     
-                #print('\n')
+             
         
         previous_mesh_info.update(mesh_changes)
         
-        # Track object location changes
+      
         current_location = obj.location
         if current_location != previous_location:
-            
-                
-            print(f"Object {obj.name} location changed from{previous_location} to: {current_location}")
-            
-            # Calculate translation instead
-            
-        
             previous_location = copy.copy(current_location)
             locationchange= (True , {last_operator}) 
-        # Log changes or properties of the mesh
-        #This next line has been commented out to prevent filling up myy logs
-        # print(f"Mesh changes - Vertices: {vertices_count}, Edges: {edges_count}, Faces: {faces_count}")
         
         
-        # Rotation
         current_rotation = obj.rotation_euler
         
-        # Extract rotations around X, Y, and Z axes (in radians)
         rotation_x = current_rotation.x
         rotation_y = current_rotation.y
         rotation_z = current_rotation.z
         
         current_rotation= (rotation_x , rotation_y , rotation_z )
         if current_rotation != previous_rotation:    
-            print(f"Object {obj.name} rotation changed from {previous_rotation} to: {current_rotation}")
+            
             previous_rotation = copy.copy(current_rotation)
             rotationchange= (True , {last_operator}) 
             
         #Scale   
         current_scale = obj.scale
         if current_scale != previous_scale:        
-            print(f"Object {obj.name} location changed from{previous_location} to: {current_location}")
             previous_scale = copy.copy(current_scale)
             
     
@@ -280,21 +264,12 @@ def get_mat_command(current_mat, initial_mat):
             slot_ids[i] = (current_val, initial_val)
             global mat_change
             mat_change= True
-            
-    print(f"slots {slot_ids}")
-    
-
+  
 def apply_mat_command(slot_ids):
-    
     global mat_change
-    print(f"Slots id  {slot_ids}")
-    
     if mat_change:
-   
         command = ""
         for slot_id, (current_material, initial_material) in slot_ids.items():
-            print(f"Current material {current_material}")
-            #if the change wwe made was to remove all material slots
             if current_material == None:
                 command+=(
                 f"bpy.context.object.active_material_index={slot_id}\n"
@@ -322,19 +297,13 @@ def get_mod_props():
     obj = bpy.context.active_object
 
     for modifier in bpy.context.object.modifiers:
-        print("Modifier Name:", modifier.name)
         allprops = dir(bpy.context.object.modifiers[modifier.name])
         moddict = {}
 
         for prop in allprops:
             value = getattr(obj.modifiers[modifier.name], prop, None)
-            print(prop, value)
             moddict[prop] = value
-
         mod_props[modifier.name] = moddict
-        print('-----------------------------------')
-
-    print(f'Modprops dict {mod_props}')
     return mod_props
 
 
@@ -344,15 +313,8 @@ def compare_dicts(a, b):
     global steps
 
     for key in b.keys():
-      print (f"Modifier {key}")
       if key not in a :
-        print(f"Modifier {key} has been added")
-        
-        #get the command to apply the key with all its subvalues
         mod=bpy.context.object.modifiers[key].type
-        
-    
-       
         command=(f"bpy.ops.object.modifier_add(type='{mod}')")
         steps.append(command)
         for prop in (b[key]).keys():
@@ -360,11 +322,6 @@ def compare_dicts(a, b):
                 value_str = f"'{b[key][prop]}'" if isinstance(b[key][prop], str) else b[key][prop]
                 command = f"bpy.context.object.modifiers['{key}'].{prop} = {value_str}"
                 steps.append(command)
-
-        
-      
-
-
 
         if key in a:
           print (b[key])
@@ -374,8 +331,6 @@ def compare_dicts(a, b):
             if b[key][prop] != a[key][prop]:
               print(f"Modifier {key} value {prop} changed from {a[key][prop]} to {b[key][prop]}")
 
-
-
         #check if a modifier has been removed
     for key in a .keys():  
         if key not in b:
@@ -383,10 +338,6 @@ def compare_dicts(a, b):
     
             command = f"bpy.ops.object.modifier_remove(modifier='{key}')"
             steps.append(command)
-
-
-    
-    
 
 class StartOperator(bpy.types.Operator):
     bl_idname = "myaddon.start"
@@ -416,7 +367,6 @@ class StartOperator(bpy.types.Operator):
     
         if obj and obj.type == 'MESH':
             initial_mat=obj.data.materials[:]
-            print (initial_mat)
             global initial_mods
             initial_mods=get_mod_props()
             
@@ -425,12 +375,6 @@ class StartOperator(bpy.types.Operator):
         global steps_recorded
         recording= True
         steps_recorded=False
-        
-        
-
-        
-        
-        print("Recording changes started.... ")
         return {'FINISHED'}
     
 class StopOperator(bpy.types.Operator):
@@ -448,18 +392,13 @@ class StopOperator(bpy.types.Operator):
         global starting_rotation
         global starting_scale
         
-        print("Custom stop operator executed!")
-        
         obj = bpy.context.active_object
     
         if obj and obj.type == 'MESH':
-            print('obj is mesh')
-            
             global starting_location
            
         
             if translation:
-                print(f' sl {starting_location} , {obj.location}')
                 get_pos_transform (starting_location[0], obj.location)
                 
         #update rotation steps
@@ -474,15 +413,11 @@ class StopOperator(bpy.types.Operator):
             current_rotation =(rotation_x , rotation_y , rotation_z)
         
             if current_rotation != starting_rotation:
-                
-                print(f' sr {starting_rotation } , {current_rotation}')
                 rotation_command (starting_rotation, current_rotation)
                 
             #scale
             current_scale=obj.scale
             if current_scale != starting_scale:
-                
-                print(f' ssc {starting_scale } , {current_scale}')
                 get_scale_factor (starting_scale, current_scale)
                 
                 
@@ -522,16 +457,12 @@ class ApplyOperator(bpy.types.Operator):
     bl_label = "Apply"
     
     def execute(self, context):
-        
-        print("Custom apply operator executed!")
        
         global steps
         
         apply_mat_command(slot_ids)
         
         for command in steps:
-            # Evaluate and execute each command as a Blender Python function
-            print (f"\n evaluating {command}")
             exec(command)
             
        
@@ -552,7 +483,6 @@ class ExportOperator(bpy.types.Operator):
             # Write each step from the 'steps' variable to the file
             for step in steps:
                 file.write(step + "\n")  # Write each step followed by a newline
-        print("Custom export operator executed!")
         return {'FINISHED'}
 
 class StepsTracker(bpy.types.Panel):
@@ -606,7 +536,6 @@ class StepsTracker(bpy.types.Panel):
         sub2 = row.row()
         sub2.operator("myaddon.export")
         if steps_recorded:
-            print('subs enabled: True')
             sub2.enabled=True
             sub.enabled=True
         else:
