@@ -26,6 +26,8 @@ initial_mat= None
 mat_change=False
 slot_ids={}
 initial_mods={}
+recording= False
+steps_recorded=False
 
 def get_starting_loc():
     global starting_location
@@ -354,7 +356,7 @@ def compare_dicts(a, b):
         command=(f"bpy.ops.object.modifier_add(type='{mod}')")
         steps.append(command)
         for prop in (b[key]).keys():
-            if prop not in ["__doc__","name", "rna_type","type", "is_override_data", "__module__", "__slots__", "bl_rna", "damping_time", "execution_time"]:
+            if prop not in ["__doc__","name","custom_profile", "rna_type","type", "is_override_data", "__module__", "__slots__", "bl_rna", "damping_time", "execution_time"]:
                 value_str = f"'{b[key][prop]}'" if isinstance(b[key][prop], str) else b[key][prop]
                 command = f"bpy.context.object.modifiers['{key}'].{prop} = {value_str}"
                 steps.append(command)
@@ -390,10 +392,10 @@ class StartOperator(bpy.types.Operator):
     bl_idname = "myaddon.start"
     bl_label = "Start Recording"
     
-    recording = bpy.props.BoolProperty(default=False)
+
     
     def execute(self, context):
-        context.scene.myaddon_start.recording = True 
+       
         global steps
         
         # Clear the steps list before starting a new recording
@@ -417,6 +419,13 @@ class StartOperator(bpy.types.Operator):
             print (initial_mat)
             global initial_mods
             initial_mods=get_mod_props()
+            
+        #set recording state to True
+        global recording
+        global steps_recorded
+        recording= True
+        steps_recorded=False
+        
         
 
         
@@ -432,7 +441,7 @@ class StopOperator(bpy.types.Operator):
     
     def execute(self, context):
         
-        context.scene.myaddon_start.recording = False
+        
         
         global translation
         global steps
@@ -499,6 +508,12 @@ class StopOperator(bpy.types.Operator):
                 
         for step in steps:        
             print(f" STEPS {step} \n")
+        
+        global recording
+        global steps_recorded
+        steps_recorded=True
+        recording = False
+        print('Steps recorded: True')
             
         return {'FINISHED'}
     
@@ -559,22 +574,44 @@ class StepsTracker(bpy.types.Panel):
         layout.label(text=" Hit Track to Start tracking your steps")
 
 
-        # Big render button
+        # Big render buttonn
+        global recording
+        global steps_recorded
        
         row = layout.row()
         row.scale_y = 1.5
-        row.operator("myaddon.start")
+        if not recording:
+            row.operator("myaddon.start")
+            row.enabled=True
+        else:
+            row.operator("myaddon.start", text="Recording...")
+            row.enabled = False
+
 
         # Different sizes in a row
         layout.label(text="Next")
         row = layout.row(align=True)
-        row.operator("myaddon.stop")
+        sub3=row.row()
+        if recording:
+            sub3.operator("myaddon.stop")
+            sub3.enabled = True
+        else:
+            sub3.operator("myaddon.stop")
+            sub3.enabled=False
+
 
         sub = row.row()
         sub.scale_x = 2.0
         sub.operator("myaddon.apply")
-
-        row.operator("myaddon.export")
+        sub2 = row.row()
+        sub2.operator("myaddon.export")
+        if steps_recorded:
+            print('subs enabled: True')
+            sub2.enabled=True
+            sub.enabled=True
+        else:
+            sub2.enabled=False
+            sub.enabled=False
 
 
 def register():
