@@ -341,7 +341,16 @@ def compare_dicts(a, b):
 
 class StartOperator(bpy.types.Operator):
     bl_idname = "myaddon.start"
-    bl_label = "Start Recording"
+    bl_label = "Track"
+
+    
+    def invoke(self, context, event):
+            wm = context.window_manager
+            return wm.invoke_popup(self, width=240)
+
+    def draw(self, context):
+        layout = self.layout
+        layout.label(text="Click on a mesh object to start recording")
     
 
     
