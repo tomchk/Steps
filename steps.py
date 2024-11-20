@@ -178,6 +178,7 @@ def log_mesh_changes(dummy):
     global starting_scale
     global previous_rotation
     global previous_scale
+    global steps
     
     # Safely get last operator
     try:
@@ -209,33 +210,47 @@ def log_mesh_changes(dummy):
                 # Get the operator
                 op = bpy.context.window_manager.operators[-1]
                 
-                # Special handling for extrude operations
-                if last_operator == 'MESH_OT_extrude_region_move':
-                    # Capture both the extrude and the move
+                # Handle specific operations
+                if last_operator == 'MESH_OT_loopcut_slide':
+                    steps.append("bpy.ops.mesh.loopcut_slide('INVOKE_DEFAULT')")
+                
+                elif last_operator == 'MESH_OT_delete':
+                    type_value = getattr(op.properties, "type", 'VERT')
+                    steps.append(f"bpy.ops.mesh.delete(type='{type_value}')")
+                
+                elif last_operator == 'MESH_OT_extrude_region_move':
                     steps.append("bpy.ops.mesh.extrude_region_move('INVOKE_DEFAULT')")
-                else:
-                    # For other operations, capture the full command with properties
-                    command = f"bpy.ops.{op.bl_idname.lower()}("
-                    
-                    # Add properties
-                    props = []
-                    for prop_name in dir(op.properties):
-                        if not prop_name.startswith('_'):
-                            prop_value = getattr(op.properties, prop_name)
-                            if isinstance(prop_value, str):
-                                props.append(f"{prop_name}='{prop_value}'")
-                            else:
-                                props.append(f"{prop_name}={prop_value}")
-                    
-                    command += ", ".join(props) + ")"
-                    steps.append(command)
+                
+                elif last_operator == 'TRANSFORM_OT_resize':
+                    value = getattr(op.properties, "value", (1, 1, 1))
+                    steps.append(f"bpy.ops.transform.resize(value={tuple(value)})")
+                
+                elif last_operator == 'TRANSFORM_OT_translate':
+                    value = getattr(op.properties, "value", (0, 0, 0))
+                    steps.append(f"bpy.ops.transform.translate(value={tuple(value)})")
+                
+                elif last_operator == 'TRANSFORM_OT_rotate':
+                    value = getattr(op.properties, "value", 0)
+                    orient_axis = getattr(op.properties, "orient_axis", 'Z')
+                    steps.append(f"bpy.ops.transform.rotate(value={value}, orient_axis='{orient_axis}')")
+                
+                elif last_operator == 'MESH_OT_bevel':
+                    width = getattr(op.properties, "width", 0.1)
+                    segments = getattr(op.properties, "segments", 1)
+                    steps.append(f"bpy.ops.mesh.bevel(width={width}, segments={segments})")
+                
+                elif last_operator == 'MESH_OT_inset':
+                    thickness = getattr(op.properties, "thickness", 0.1)
+                    depth = getattr(op.properties, "depth", 0.0)
+                    steps.append(f"bpy.ops.mesh.inset(thickness={thickness}, depth={depth})")
+                
             except Exception as e:
                 print(f"Error capturing edit mode operation: {e}")
         
         # Handle object mode transforms as before
         elif obj.mode == 'OBJECT' and last_operator == 'TRANSFORM_OT_translate':
             translation = True
-                        
+                                    
 def get_mat_command(current_mat, initial_mat):
     obj = bpy.context.active_object 
   
