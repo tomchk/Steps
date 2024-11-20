@@ -10,6 +10,7 @@ bl_info = {
 import bpy
 import copy
 import math
+import bmesh
 from itertools import zip_longest
 
 
@@ -30,6 +31,7 @@ slot_ids={}
 initial_mods={}
 recording= False
 steps_recorded=False
+
 
 def get_starting_loc():
     global starting_location
@@ -162,9 +164,11 @@ def get_scale_factor(start, end):
     
 
 def log_mesh_changes(dummy):
+    log_mesh_changes.__name__ = 'log_mesh_changes'
     
     obj = bpy.context.active_object
-    
+    if not obj or obj.type != 'MESH':
+        return
     
     global logged_op
     global translation
@@ -175,72 +179,63 @@ def log_mesh_changes(dummy):
     global previous_rotation
     global previous_scale
     
+    # Safely get last operator
+    try:
+        last_operator = bpy.context.window_manager.operators[-1].bl_idname if bpy.context.window_manager.operators else None
+    except:
+        last_operator = None
     
-    
-    if obj and obj.type == 'MESH':
+    if last_operator and last_operator != logged_op:
+        logged_op = last_operator
         
-       
-        last_operator = bpy.context.window_manager.operators[-1].bl_idname
-        
-       
-        if last_operator != logged_op:
-         
-            
-            logged_op=last_operator
-            
-            #check if operator was a translation one
-            if last_operator == 'TRANSFORM_OT_translate':
-                translation = True
-            
-        # Track mesh modifications (vertices, edges, faces)
-        mesh_data = obj.data
-        vertices_count = len(mesh_data.vertices)
-        edges_count = len(mesh_data.edges)
-        faces_count = len(mesh_data.polygons)
-        
-        mesh_changes = {
-            'vertices': vertices_count,
-            'edges': edges_count,
-            'faces': faces_count
+        # Add edit mode operators to track
+        edit_mode_ops = {
+            'MESH_OT_extrude_region_move',
+            'MESH_OT_delete',
+            'MESH_OT_subdivide',
+            'MESH_OT_bevel',
+            'MESH_OT_inset',
+            'MESH_OT_loopcut_slide',
+            'MESH_OT_edge_split',
+            'MESH_OT_duplicate',
+            'TRANSFORM_OT_translate',
+            'TRANSFORM_OT_rotate',
+            'TRANSFORM_OT_resize'
         }
         
-        if previous_mesh_info:
-            # Compare previous state with current state
-            for key, value in mesh_changes.items():
-                if previous_mesh_info.get(key) != value:
-                    print(f' Debug  key: {previous_mesh_info.get(key)} value: {value}')
-                    print(f"Mesh {key} count changed: {value}")
+        # Check if we're in edit mode and it's an edit mode operation
+        if obj.mode == 'EDIT' and last_operator in edit_mode_ops:
+            try:
+                # Get the operator
+                op = bpy.context.window_manager.operators[-1]
+                
+                # Special handling for extrude operations
+                if last_operator == 'MESH_OT_extrude_region_move':
+                    # Capture both the extrude and the move
+                    steps.append("bpy.ops.mesh.extrude_region_move('INVOKE_DEFAULT')")
+                else:
+                    # For other operations, capture the full command with properties
+                    command = f"bpy.ops.{op.bl_idname.lower()}("
                     
-             
+                    # Add properties
+                    props = []
+                    for prop_name in dir(op.properties):
+                        if not prop_name.startswith('_'):
+                            prop_value = getattr(op.properties, prop_name)
+                            if isinstance(prop_value, str):
+                                props.append(f"{prop_name}='{prop_value}'")
+                            else:
+                                props.append(f"{prop_name}={prop_value}")
+                    
+                    command += ", ".join(props) + ")"
+                    steps.append(command)
+            except Exception as e:
+                print(f"Error capturing edit mode operation: {e}")
         
-        previous_mesh_info.update(mesh_changes)
-        
-      
-        current_location = obj.location
-        if current_location != previous_location:
-            previous_location = copy.copy(current_location)
-            locationchange= (True , {last_operator}) 
-        
-        
-        current_rotation = obj.rotation_euler
-        
-        rotation_x = current_rotation.x
-        rotation_y = current_rotation.y
-        rotation_z = current_rotation.z
-        
-        current_rotation= (rotation_x , rotation_y , rotation_z )
-        if current_rotation != previous_rotation:    
-            
-            previous_rotation = copy.copy(current_rotation)
-            rotationchange= (True , {last_operator}) 
-            
-        #Scale   
-        current_scale = obj.scale
-        if current_scale != previous_scale:        
-            previous_scale = copy.copy(current_scale)
-            
-    
-            
+        # Handle object mode transforms as before
+        elif obj.mode == 'OBJECT' and last_operator == 'TRANSFORM_OT_translate':
+            translation = True
+                        
 def get_mat_command(current_mat, initial_mat):
     obj = bpy.context.active_object 
   
@@ -343,47 +338,49 @@ class StartOperator(bpy.types.Operator):
     bl_idname = "myaddon.start"
     bl_label = "Track"
 
-    
     def invoke(self, context, event):
+        if not context.active_object or context.active_object.type != 'MESH':
             wm = context.window_manager
             return wm.invoke_popup(self, width=240)
+        return self.execute(context)
 
     def draw(self, context):
         layout = self.layout
-        layout.label(text="Click on a mesh object to start recording")
-    
+        layout.label(text="Please select a mesh object first!")
+        layout.label(text="Then click Track again.")
 
-    
     def execute(self, context):
-       
+        if not context.active_object or context.active_object.type != 'MESH':
+            self.report({'WARNING'}, "Please select a mesh object first!")
+            return {'CANCELLED'}
+
         global steps
-        
-        # Clear the steps list before starting a new recording
         steps.clear()
+        
+        # Remove any existing handlers to avoid duplicates
+        for handler in bpy.app.handlers.depsgraph_update_post:
+            if handler.__name__ == 'log_mesh_changes':
+                bpy.app.handlers.depsgraph_update_post.remove(handler)
         
         global starting_location
         get_starting_loc()
         get_starting_rotation()
         get_starting_scale()
         
-        
-        # Register the handler to monitor changes
         bpy.app.handlers.depsgraph_update_post.append(log_mesh_changes)
         
-        # Register the material changes
         global initial_mat
-        obj = bpy.context.active_object
-    
-        if obj and obj.type == 'MESH':
-            initial_mat=obj.data.materials[:]
-            global initial_mods
-            initial_mods=get_mod_props()
+        obj = context.active_object
+        initial_mat = obj.data.materials[:]
+        global initial_mods
+        initial_mods = get_mod_props()
             
-        #set recording state to True
         global recording
         global steps_recorded
-        recording= True
-        steps_recorded=False
+        recording = True
+        steps_recorded = False
+        
+        self.report({'INFO'}, "Started tracking mesh changes")
         return {'FINISHED'}
     
 class StopOperator(bpy.types.Operator):
@@ -482,18 +479,36 @@ class ExportOperator(bpy.types.Operator):
     bl_idname = "myaddon.export"
     bl_label = "Export"
     
+    filepath: bpy.props.StringProperty(
+        subtype='FILE_PATH',
+        default="steps.py"
+    )
+    
+    filter_glob: bpy.props.StringProperty(
+        default='*.py',
+        options={'HIDDEN'}
+    )
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {'RUNNING_MODAL'}
+    
     def execute(self, context):
         global steps
-       
-        filepath = "saved_steps.py" 
         
-        # Open the file in write mode
-        with open(filepath, "w") as file:
-            # Write each step from the 'steps' variable to the file
-            for step in steps:
-                file.write(step + "\n")  # Write each step followed by a newline
+        try:
+            # Open the file in write mode
+            with open(self.filepath, "w") as file:
+                # Write each step from the 'steps' variable to the file
+                for step in steps:
+                    file.write(step + "\n")  # Write each step followed by a newline
+            self.report({'INFO'}, f"Successfully saved steps to {self.filepath}")
+        except Exception as e:
+            self.report({'ERROR'}, f"Failed to save file: {str(e)}")
+            return {'CANCELLED'}
+            
         return {'FINISHED'}
-
+    
 class StepsTracker(bpy.types.Panel):
     """Creates a Panel in the scene context of the View3d editor"""
     bl_label = "Steps Tracker"
