@@ -199,13 +199,26 @@ def log_mesh_changes(dummy):
             'MESH_OT_loopcut_slide',
             'MESH_OT_edge_split',
             'MESH_OT_duplicate',
+            'MESH_OT_select_all',
+            'MESH_OT_select_face_by_sides',
+            'MESH_OT_select_mode',
+            'VIEW3D_OT_select',
+            'VIEW3D_OT_select_box',
+            'VIEW3D_OT_select_circle',
             'TRANSFORM_OT_translate',
             'TRANSFORM_OT_rotate',
             'TRANSFORM_OT_resize'
         }
         
+        # Track mode changes
+        if last_operator == 'OBJECT_OT_mode_set':
+            op = bpy.context.window_manager.operators[-1]
+            mode = getattr(op.properties, "mode", 'OBJECT')
+            steps.append(f"bpy.ops.object.mode_set(mode='{mode}')")
+            return
+            
         # Check if we're in edit mode and it's an edit mode operation
-        if obj.mode == 'EDIT' and last_operator in edit_mode_ops:
+        if obj.mode == 'EDIT' and (last_operator in edit_mode_ops or last_operator.startswith('MESH_') or last_operator.startswith('VIEW3D_OT_select')):
             try:
                 # Get the operator
                 op = bpy.context.window_manager.operators[-1]
@@ -229,6 +242,19 @@ def log_mesh_changes(dummy):
                     value = getattr(op.properties, "value", (0, 0, 0))
                     steps.append(f"bpy.ops.transform.translate(value={tuple(value)})")
                 
+                elif last_operator == 'MESH_OT_select_mode':
+                    type_value = getattr(op.properties, "type", 'VERT')
+                    steps.append(f"bpy.ops.mesh.select_mode(type='{type_value}')")
+                
+                elif last_operator == 'MESH_OT_select_all':
+                    action = getattr(op.properties, "action", 'TOGGLE')
+                    steps.append(f"bpy.ops.mesh.select_all(action='{action}')")
+                
+                elif last_operator in {'VIEW3D_OT_select', 'VIEW3D_OT_select_box', 'VIEW3D_OT_select_circle'}:
+                    # For face selection, we need to ensure we're in face select mode first
+                    steps.append("bpy.ops.mesh.select_mode(type='FACE')")
+                    steps.append(f"bpy.ops.{last_operator.lower()}('INVOKE_DEFAULT')")
+                
                 elif last_operator == 'TRANSFORM_OT_rotate':
                     value = getattr(op.properties, "value", 0)
                     orient_axis = getattr(op.properties, "orient_axis", 'Z')
@@ -250,7 +276,7 @@ def log_mesh_changes(dummy):
         # Handle object mode transforms as before
         elif obj.mode == 'OBJECT' and last_operator == 'TRANSFORM_OT_translate':
             translation = True
-                                    
+                                                
 def get_mat_command(current_mat, initial_mat):
     obj = bpy.context.active_object 
   
